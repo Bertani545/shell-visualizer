@@ -4,6 +4,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import {GUI} from 'three/addons/libs/lil-gui.module.min.js';
 
+import skybox from '/img/skybox.png';
+import texture from '/img/texture.jpg'
+
 
 const scene = new THREE.Scene();
 
@@ -294,7 +297,7 @@ struct GeometricContext {
 });
 
 // Must go after the material
-textureLoader.load('/resources/texture.jpg', function(texture) { material.uniforms.u_texture.value = texture;}, undefined, 
+textureLoader.load(texture, function(texture) { material.uniforms.u_texture.value = texture;}, undefined, 
                                               function(err){console.error('Texture Failed to load', err);});
 
 
@@ -303,7 +306,7 @@ const mesh = new THREE.InstancedMesh(geometry, material, count);
 scene.add(mesh);
 
 
-textureLoader.load('/resources/skybox.png', function(texture) {
+textureLoader.load(skybox, function(texture) {
   texture.mapping = THREE.EquirectangularReflectionMapping;
   scene.background = texture;
 });
