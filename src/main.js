@@ -4,54 +4,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/Addons.js';
 import {GUI} from 'three/addons/libs/lil-gui.module.min.js';
 
-class DegRadHelper {
-  constructor(obj, prop) {
-    this.obj = obj;
-    this.prop = prop;
-  }
-  get value() {
-    return THREE.MathUtils.radToDeg(this.obj[this.prop]);
-  }
-  set value(v) {
-    this.obj[this.prop] = THREE.MathUtils.degToRad(v);
-  }
-}
-
-class StringToNumberHelper {
-  constructor(obj, prop) {
-    this.obj = obj;
-    this.prop = prop;
-  }
-  get value() {
-    return this.obj[this.prop];
-  }
-  set value(v) {
-    this.obj[this.prop] = parseFloat(v);
-  }
-}
-
-class ColorGUIHelper {
-  constructor(object, prop) {
-    this.object = object;
-    this.prop = prop;
-  }
-  get value() {
-    return '#' + this.object[this.prop].getHexString()
-;
-  }
-  set value(hexString) {
-    this.object[this.prop].set(hexString);
-  }
-}
-
-
-
 
 const scene = new THREE.Scene();
 
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.setZ(30);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 100000);
+camera.position.setZ(90);
 
 
 const renderer = new THREE.WebGLRenderer({
@@ -82,22 +40,26 @@ document.addEventListener('keydown', (e) => {
   controls.update();
 });
 
-
+const textureLoader = new THREE.TextureLoader();
 const geometry = new THREE.PlaneGeometry(1, 1);
-
 
 const my_uniforms = {
   total_instances : {value : 10000},
     total_segments : {value: 100},
     span_t : {value:15},
     b : {value: 0.215},
-    d : {value : 1.0},
-    z : {value : 3.125},
-    a : {value : 1.25},
-    n : {value : 6},
-    phi : {vaalue : 0.0},
-    psi : {value : 0},
+    d : {value : 0.88},
+    z : {value : 0.0},
+    a : {value : 1.07},
+    n : {value : 0},
+    phi : {value : 0.0},
+    psi : {value : 0.8},
+    u_texture : {value : undefined},
 }
+
+
+// Based on the paper 'A Mathematical Model for Mollusc Shells Based on Parametric
+// Surfaces and the Construction of Theoretical Morphospaces', by Gabriela Contreras-Figueroa and José L. Aragón
 const material = new THREE.ShaderMaterial({
   uniforms: THREE.UniformsUtils.merge([
     
@@ -130,6 +92,7 @@ uniform int n;
 uniform float phi;
 uniform float psi;
 
+varying vec2 UV;
 
 
 #define TAU 6.283185307179586
@@ -160,14 +123,14 @@ float[6] C(float t, float theta, mat3 R)
 
     // Project such derivative using the same method as in the paper.
     // This vector is such that is tangent to C(theta)
-    vec3 tangent = df1 * N + df2 * B;
+    vec3 tangent = R * (df1 * N + df2 * B);
 
     // Vector T is perpendicular to the plane defined by N and B
     vec3 T = normalize(vec3(d*(b*sin(t)+cos(t)), d*(b*cos(t)-sin(t)), -b*z));
 
-    // Cross product gives us the desired normal
+    // Cross product gives us the desired normal. we have to tilet T
     // The order is given by the right-hand rule
-    vec3 normal = cross(T, tangent);
+    vec3 normal = cross(R * T, tangent);
     ans[3] = normal.x; ans[4] = normal.y; ans[5] = normal.z;
 
   return ans;
@@ -224,18 +187,22 @@ void main() {
 		case 0:
 			pos = p1 + c1;
       vNormal = normalize(normalMatrix * n1);
+      UV = vec2((segment_id) / (total_segments), (group_id) / (quads_per_segment));
 			break;
 		case 1:
 			pos = p2 + c1;
       vNormal = normalize(normalMatrix * n2);
+      UV = vec2((segment_id) / (total_segments), (group_id+1.) / (quads_per_segment));
 			break;
 		case 2:
 			pos = p3 + c2;
       vNormal = normalize(normalMatrix * n3);
+      UV = vec2((segment_id+1.) / (total_segments), (group_id) / (quads_per_segment));
 			break;
 		case 3:
 			pos = p4 + c2;
       vNormal = normalize(normalMatrix * n4);
+      UV = vec2((segment_id+1.) / (total_segments), (group_id+1.) / (quads_per_segment));
 			break;
 		default:
 	    	//pos = vec3(2000.);
@@ -244,7 +211,6 @@ void main() {
 
     pos.z += exp(b * span_t);
 
-      
 
       vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
       vViewPosition = -mvPosition.xyz;
@@ -258,6 +224,8 @@ void main() {
     uniform vec3 emissive;
     uniform float opacity;
 
+    uniform sampler2D u_texture;
+    varying vec2 UV;
     varying vec3 vNormal;
     //varying vec3 vViewPosition;
 
@@ -316,80 +284,68 @@ struct GeometricContext {
         }
       #endif
       // Add ambient light
-      reflectedLight.indirectDiffuse += vec3(1.0) * ambientLightColor;
+      reflectedLight.indirectDiffuse +=  ambientLightColor;
 
       vec3 outgoingLight = specular + diffuse + reflectedLight.indirectDiffuse;
 
-      gl_FragColor = vec4(outgoingLight, opacity);
-
-      //gl_FragColor = vec4(vec3(0.0, 1.0, 1.0) * ambientLightColor, opacity);
+      gl_FragColor = vec4(texture2D(u_texture, vec2(UV)).rgb * outgoingLight, opacity);
     }
   `,
 });
+
+// Must go after the material
+textureLoader.load('/resources/texture.jpg', function(texture) { material.uniforms.u_texture.value = texture;}, undefined, 
+                                              function(err){console.error('Texture Failed to load', err);});
+
+
 const count = 10000;
 const mesh = new THREE.InstancedMesh(geometry, material, count);
 scene.add(mesh);
 
 
-
-const textureLoader = new THREE.TextureLoader();
 textureLoader.load('/resources/skybox.png', function(texture) {
   texture.mapping = THREE.EquirectangularReflectionMapping;
   scene.background = texture;
 });
 
 
-
-const geometry2 = new THREE.BoxGeometry( 2, 2, 2 ); 
-const material2 = new THREE.MeshPhongMaterial({ color: 0x44aa88, shininess: 100 });
-const cube = new THREE.Mesh( geometry2, material2 ); 
-cube.position.set(5, 4, 0);
-scene.add( cube );
-
-
-
-
-const light1 = new THREE.AmbientLight(0xFFFFFF, 0.1);
+const light1 = new THREE.AmbientLight(0xFFFFFF, 0.3);
 const light2 = new THREE.DirectionalLight(0xFFFFFF, 0.8);
-light2.position.set(0, 10, 0);
-light2.target.position.set(-5, 0, 0);
+light2.position.set(0, 100, 10);
+light2.target.position.set(0, -5, -5);
 scene.add(light2);
 scene.add(light2.target);
 scene.add(light1);
 
-const dirLightHelper = new THREE.DirectionalLightHelper(light2, 1); // 1 is the size
-scene.add(dirLightHelper);
+//const dirLightHelper = new THREE.DirectionalLightHelper(light2, 1); // 1 is the size
+//scene.add(dirLightHelper);
 
 
 const gui = new GUI();
-gui.addColor(new ColorGUIHelper(light2, 'color'), 'value').name('color');
-gui.add(light2, 'intensity', 0, 5, 0.01);
-gui.add(light2.target.position, 'x', -10, 10);
-gui.add(light2.target.position, 'z', -10, 10);
-gui.add(light2.target.position, 'y', 0, 10);
+gui.add(material.uniforms.b, 'value', 0, 2).name('Whorl expansion rate\nb').onChange((b) =>{
+  const new_t = (-b/(2) + 1.) * (15-3) + 3;
+  material.uniforms.span_t.value = new_t;
+  console.log(new_t);
+}); // Change later
+gui.add(material.uniforms.d, 'value', 0.01, 5).name(            'Scale of the spiral:\nd');
+gui.add(material.uniforms.z, 'value', -5, 5).name(              'Translation on the\nz axis: z');
+gui.add(material.uniforms.a, 'value', 0, 3).name(               'Ratio of the axis of\nthe aperture: a');
+gui.add(material.uniforms.n, 'value', 0, 10).step(1).name(      'Number of Peaks for \nthe ornamentation: n');
+gui.add(material.uniforms.phi, 'value', 0, Math.PI).name(       'Rotation of the\naperture: Phi');
+gui.add(material.uniforms.psi, 'value', 0, 0.5 * Math.PI).name( 'Tilt of the\naperture: Psi');
+
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
 
 
 function animate()
 {
-
-  // Update time uniform
-  dirLightHelper.update();
   controls.update();
   renderer.render(scene, camera);
 }
 renderer.setAnimationLoop( animate );
-
-
-/**
- 
-const loader = new THREE.CubeTextureLoader();
-const skyboxTexture = loader.load([
-  'px.jpg', 'nx.jpg', // Right, Left
-  'py.jpg', 'ny.jpg', // Top, Bottom
-  'pz.jpg', 'nz.jpg', // Front, Back
-]);
-
-scene.background = skyboxTexture;
- * 
- *
- */
