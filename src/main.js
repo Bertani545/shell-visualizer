@@ -139,23 +139,34 @@ uniform float psi;
 float[6] C(float t, float theta, mat3 R)
 {
   float[6] ans;
+  float nf = float(n);
+
+  // ---- Obtain the point p on the generating curve. Note that it is centered at (0,0,0) ----
+  // C(t, theta) is a 2D function projected to the plane defined by the vectors N and B. Let's call the original c(theta)
+
+  float c1 = (a*sin(theta)*cos(phi) + cos(theta)*sin(phi)) * (1. + 0.1 * sin(nf * theta));
+  float c2 = (a*sin(theta)*sin(phi) - cos(theta)*cos(phi)) * (1. + 0.1 * sin(nf * theta));
+
   vec3 N = normalize(vec3(b*cos(t)-sin(t), -b*sin(t)-cos(t), 0.));
   vec3 B = normalize(vec3(b*z*(b*sin(t)+cos(t)), b*z*(b*cos(t) - sin(t)), d*(b*b+1.)));
-  float nf = float(n);
-  vec3 p = (exp(b*t) - 1./(t+1.)) * R * ((a*sin(theta)*cos(phi) + cos(theta)*sin(phi)) * (1. + 0.1 * sin(nf * theta)) * N + (a*sin(theta)*sin(phi)-cos(theta)*cos(phi)) * (1. + 0.1 * sin(nf * theta)) * B);
+  vec3 p = (exp(b*t) - 1./(t+1.)) * R * (c1 * N + c2 * B);
   ans[0] = p.x; ans[1] = p.y; ans[2] = p.z;
 
-  
+    // ---- Now we obtain the normal at this point -----
+
+    // Obtain the derivative of c(theta) in the plane.
     float df1 = (a*cos(theta)*cos(phi) - sin(theta)*sin(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*cos(phi) + cos(theta)*sin(phi))*cos(nf*theta);
     float df2 = (a*cos(theta)*sin(phi) + sin(theta)*cos(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*cos(phi) - cos(theta)*cos(phi))*cos(nf*theta);
 
-    // Proyect them
+    // Project such derivative using the same method as in the paper.
+    // This vector is such that is tangent to C(theta)
     vec3 tangent = df1 * N + df2 * B;
 
-    // Obtain perpendicular
+    // Vector T is perpendicular to the plane defined by N and B
     vec3 T = normalize(vec3(d*(b*sin(t)+cos(t)), d*(b*cos(t)-sin(t)), -b*z));
 
-    // Cross product
+    // Cross product gives us the desired normal
+    // The order is given by the right-hand rule
     vec3 normal = cross(T, tangent);
     ans[3] = normal.x; ans[4] = normal.y; ans[5] = normal.z;
 
@@ -164,32 +175,31 @@ float[6] C(float t, float theta, mat3 R)
 
 
 
-    void main() {
+void main() {
 
-      float instance_id = float(int(gl_InstanceID));
+  float instance_id = float(int(gl_InstanceID));
 	
 	
 	float quads_per_segment = total_instances / total_segments; 
 	float segment_id = float(int(instance_id/quads_per_segment));
 	float group_id = mod(instance_id, quads_per_segment); // For creating the ring. This divides TAU
 	
+  // Parameters for the 4 vertices that defines this quad
 	float t1 = (segment_id) / (total_segments) * span_t + 0.001;
 	float t2 = (segment_id + 1.) / (total_segments) * span_t + 0.001;
-	//float t_m = (t0+t1) * 0.5;
-	
-	vec3 c1 = exp(b*t1) * vec3(d * sin(t1), d * cos(t1), -z); 
-	vec3 c2 = exp(b*t2) * vec3(d * sin(t2), d * cos(t2), -z);
-	
-	// Get theta
 	float theta1 = (group_id) / (quads_per_segment) * TAU;
 	float theta2 = (group_id+1.) / (quads_per_segment) * TAU;
 
-  // Rotation matix
+  // We obtain the displacement for the generating curves
+	vec3 c1 = exp(b*t1) * vec3(d * sin(t1), d * cos(t1), -z); 
+	vec3 c2 = exp(b*t2) * vec3(d * sin(t2), d * cos(t2), -z);
+	
+  // Rotation matix unique to the whole shell
 	mat3 R = mat3(vec3(cos(psi), sin(psi), 0.), 
 				vec3(-sin(psi), cos(psi), 0.), 
 				vec3(0., 0., 1.));
-	//R = mat3(1.0);
 
+  // We get the outline of the shell centered at (0,0,0)
   float[6] data1 = C(t1, theta1, R);
   float[6] data2 = C(t1, theta2, R);
   float[6] data3 = C(t2, theta1, R);
@@ -207,8 +217,7 @@ float[6] C(float t, float theta, mat3 R)
   vec3 p4 = vec3(data4[0], data4[1], data4[2]);
   vec3 n4 = vec3(data4[3], data4[4], data4[5]);
 
-	// Set each vertex and translate it by c1 and c2
-
+	// By translating the outlines, we obtain their real position in the mesh
   vec3 pos;
 
 	switch(gl_VertexID){
