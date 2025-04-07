@@ -325,7 +325,6 @@ const gui = new GUI();
 gui.add(material.uniforms.b, 'value', 0, 2).name('Whorl expansion rate\nb').onChange((b) =>{
   const new_t = (-b/(2) + 1.) * (15-3) + 3;
   material.uniforms.span_t.value = new_t;
-  console.log(new_t);
 }); // Change later
 gui.add(material.uniforms.d, 'value', 0.01, 5).name(            'Scale of the spiral:\nd');
 gui.add(material.uniforms.z, 'value', -5, 5).name(              'Translation on the\nz axis: z');
