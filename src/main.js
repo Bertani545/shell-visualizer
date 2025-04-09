@@ -122,7 +122,7 @@ float[6] C(float t, float theta, mat3 R)
 
     // Obtain the derivative of c(theta) in the plane.
     float df1 = (a*cos(theta)*cos(phi) - sin(theta)*sin(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*cos(phi) + cos(theta)*sin(phi))*cos(nf*theta);
-    float df2 = (a*cos(theta)*sin(phi) + sin(theta)*cos(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*cos(phi) - cos(theta)*cos(phi))*cos(nf*theta);
+    float df2 = (a*cos(theta)*sin(phi) + sin(theta)*cos(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*sin(phi) - cos(theta)*cos(phi))*cos(nf*theta);
 
     // Project such derivative using the same method as in the paper.
     // This vector is such that is tangent to C(theta)
