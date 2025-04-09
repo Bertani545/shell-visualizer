@@ -44,9 +44,10 @@ document.addEventListener('keydown', (e) => {
 
 const textureLoader = new THREE.TextureLoader();
 const geometry = new THREE.PlaneGeometry(1, 1);
+const count = 10000;
 
 const my_uniforms = {
-  total_instances : {value : 10000},
+  total_instances : {value : count},
     total_segments : {value: 100},
     span_t : {value:15},
     b : {value: 0.215},
@@ -125,14 +126,15 @@ float[6] C(float t, float theta, mat3 R)
 
     // Project such derivative using the same method as in the paper.
     // This vector is such that is tangent to C(theta)
-    vec3 tangent = R * (df1 * N + df2 * B);
+    //vec3 tangent = R * (df1 * N + df2 * B);
+    vec3 perp = -R * (-df2 * N + df1 * B);
 
     // Vector T is perpendicular to the plane defined by N and B
-    vec3 T = normalize(vec3(d*(b*sin(t)+cos(t)), d*(b*cos(t)-sin(t)), -b*z));
+    //vec3 T = normalize(vec3(d*(b*sin(t)+cos(t)), d*(b*cos(t)-sin(t)), -b*z));
 
     // Cross product gives us the desired normal. we have to tilet T
     // The order is given by the right-hand rule
-    vec3 normal = cross(R * T, tangent);
+    vec3 normal = perp;//cross(R * T, tangent);
     ans[3] = normal.x; ans[4] = normal.y; ans[5] = normal.z;
 
   return ans;
@@ -274,15 +276,15 @@ struct GeometricContext {
 
       #if NUM_DIR_LIGHTS > 0
         for (int i = 0; i < NUM_DIR_LIGHTS; i++) {
-          vec3 lightDir = normalize(directionalLights[i].direction); // already points *from* surface toward light
+          vec3 lightDir = normalize(directionalLights[i].direction);
           vec3 lightColor = directionalLights[0].color;
 
           float diff = max(dot(normal, lightDir), 0.0);
-          diffuse += diff * lightColor;
+          diffuse += diff * lightColor * 0.8;
         
           vec3 halfwayDir = normalize(lightDir + viewDir);
-          float spec = pow(max(dot(normal, halfwayDir), 0.0), 32.0);
-          specular = spec * lightColor * 0.3;
+          float spec = pow(max(dot(normal, halfwayDir), 0.0), 1.0);
+          specular = spec * lightColor * 0.1;
         }
       #endif
       // Add ambient light
@@ -300,7 +302,7 @@ textureLoader.load(texture, function(texture) { material.uniforms.u_texture.valu
                                               function(err){console.error('Texture Failed to load', err);});
 
 
-const count = 10000;
+
 const mesh = new THREE.InstancedMesh(geometry, material, count);
 scene.add(mesh);
 
@@ -313,11 +315,17 @@ textureLoader.load(skybox, function(texture) {
 
 const light1 = new THREE.AmbientLight(0xFFFFFF, 0.3);
 const light2 = new THREE.DirectionalLight(0xFFFFFF, 0.8);
-light2.position.set(0, 100, 10);
-light2.target.position.set(0, -5, -5);
+light2.position.set(0, 100, 100);
+light2.target.position.set(0, 0, 0);
 scene.add(light2);
 scene.add(light2.target);
 scene.add(light1);
+
+const light3 = new THREE.DirectionalLight(0xFFFFFF, 0.8);
+light3.position.set(0, 100, -100);
+light3.target.position.set(0, 0, 0);
+scene.add(light3);
+scene.add(light3.target);
 
 //const dirLightHelper = new THREE.DirectionalLightHelper(light2, 1); // 1 is the size
 //scene.add(dirLightHelper);
