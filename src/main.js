@@ -102,7 +102,7 @@ varying vec2 UV;
 #define PI  3.14159265358979323846
 
 
-float[6] C(float t, float theta, mat3 R)
+vec3 C(float t, float theta, mat3 R)
 {
   float[6] ans;
   float nf = float(n);
@@ -116,30 +116,35 @@ float[6] C(float t, float theta, mat3 R)
   vec3 N = normalize(vec3(b*cos(t)-sin(t), -b*sin(t)-cos(t), 0.));
   vec3 B = normalize(vec3(b*z*(b*sin(t)+cos(t)), b*z*(b*cos(t) - sin(t)), d*(b*b+1.)));
   vec3 p = (exp(b*t) - 1./(t+1.)) * R * (c1 * N + c2 * B);
-  ans[0] = p.x; ans[1] = p.y; ans[2] = p.z;
+
+  return exp(b*t) * vec3(d * sin(t), d * cos(t), -z) + (exp(b*t) - 1./(t+1.)) * R * (c1 * N + c2 * B);
+
+}
+
+#define eps 0.001
+
+float[6] C_info(float t, float theta, mat3 R)
+{
+  float[6] ans;
+
+  vec3 p = C(t, theta, R);
+  
 
     // ---- Now we obtain the normal at this point -----
 
-    // Obtain the derivative of c(theta) in the plane.
-    float df1 = (a*cos(theta)*cos(phi) - sin(theta)*sin(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*cos(phi) + cos(theta)*sin(phi))*cos(nf*theta);
-    float df2 = (a*cos(theta)*sin(phi) + sin(theta)*cos(phi)) * (1. + 0.1 * sin(nf * theta)) + 0.1 * nf * (a*sin(theta)*sin(phi) - cos(theta)*cos(phi))*cos(nf*theta);
+    vec3 dt = (C(t + eps, theta, R) - C(t - eps, theta, R)) * 0.5 / eps;
+    vec3 dtheta = (C(t, theta + eps, R) - C(t, theta - eps, R)) * 0.5 / eps;
+    vec3 normal = cross(dt, dtheta);
 
-    // Project such derivative using the same method as in the paper.
-    // This vector is such that is tangent to C(theta)
-    //vec3 tangent = R * (df1 * N + df2 * B);
-    vec3 perp = -R * (-df2 * N + df1 * B);
+    //p += normalize(normal);
 
-    // Vector T is perpendicular to the plane defined by N and B
-    //vec3 T = normalize(vec3(d*(b*sin(t)+cos(t)), d*(b*cos(t)-sin(t)), -b*z));
-
-    // Cross product gives us the desired normal. we have to tilet T
-    // The order is given by the right-hand rule
-    vec3 normal = perp;//cross(R * T, tangent);
+    ans[0] = p.x; ans[1] = p.y; ans[2] = p.z;
     ans[3] = normal.x; ans[4] = normal.y; ans[5] = normal.z;
+
+
 
   return ans;
 }
-
 
 
 void main() {
@@ -157,9 +162,6 @@ void main() {
 	float theta1 = (group_id) / (quads_per_segment) * TAU;
 	float theta2 = (group_id+1.) / (quads_per_segment) * TAU;
 
-  // We obtain the displacement for the generating curves
-	vec3 c1 = exp(b*t1) * vec3(d * sin(t1), d * cos(t1), -z); 
-	vec3 c2 = exp(b*t2) * vec3(d * sin(t2), d * cos(t2), -z);
 	
   // Rotation matix unique to the whole shell
 	mat3 R = mat3(vec3(cos(psi), sin(psi), 0.), 
@@ -167,10 +169,10 @@ void main() {
 				vec3(0., 0., 1.));
 
   // We get the outline of the shell centered at (0,0,0)
-  float[6] data1 = C(t1, theta1, R);
-  float[6] data2 = C(t1, theta2, R);
-  float[6] data3 = C(t2, theta1, R);
-  float[6] data4 = C(t2, theta2, R);
+  float[6] data1 = C_info(t1, theta1, R);
+  float[6] data2 = C_info(t1, theta2, R);
+  float[6] data3 = C_info(t2, theta1, R);
+  float[6] data4 = C_info(t2, theta2, R);
 
   vec3 p1 = vec3(data1[0], data1[1], data1[2]);
   vec3 n1 = vec3(data1[3], data1[4], data1[5]);
@@ -189,22 +191,22 @@ void main() {
 
 	switch(gl_VertexID){
 		case 0:
-			pos = p1 + c1;
+			pos = p1;
       vNormal = normalize(normalMatrix * n1);
       UV = vec2((segment_id) / (total_segments), (group_id) / (quads_per_segment));
 			break;
 		case 1:
-			pos = p2 + c1;
+			pos = p2;
       vNormal = normalize(normalMatrix * n2);
       UV = vec2((segment_id) / (total_segments), (group_id+1.) / (quads_per_segment));
 			break;
 		case 2:
-			pos = p3 + c2;
+			pos = p3;
       vNormal = normalize(normalMatrix * n3);
       UV = vec2((segment_id+1.) / (total_segments), (group_id) / (quads_per_segment));
 			break;
 		case 3:
-			pos = p4 + c2;
+			pos = p4;
       vNormal = normalize(normalMatrix * n4);
       UV = vec2((segment_id+1.) / (total_segments), (group_id+1.) / (quads_per_segment));
 			break;
@@ -254,7 +256,14 @@ struct GeometricContext {
 };
 
     void main() {
-      vec3 normal = normalize(gl_FrontFacing ? vNormal : -vNormal);
+      
+      if(!gl_FrontFacing)
+      {
+          gl_FragColor = vec4(texture2D(u_texture, vec2(UV)).rgb * ambientLightColor, opacity);
+          return;
+      }
+
+      vec3 normal = vNormal;
       vec3 viewDir = normalize(vViewPosition);
 
       // Required struct for lighting calculations
