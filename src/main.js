@@ -101,6 +101,11 @@ varying vec2 UV;
 #define TAU 6.283185307179586
 #define PI  3.14159265358979323846
 
+struct Info
+{
+  vec3 Point;
+  vec3 Normal;
+};
 
 vec3 C(float t, float theta, mat3 R)
 {
@@ -123,9 +128,8 @@ vec3 C(float t, float theta, mat3 R)
 
 #define eps 0.001
 
-float[6] C_info(float t, float theta, mat3 R)
+Info C_info(float t, float theta, mat3 R)
 {
-  float[6] ans;
 
   vec3 p = C(t, theta, R);
   
@@ -138,8 +142,9 @@ float[6] C_info(float t, float theta, mat3 R)
 
     //p += normalize(normal);
 
-    ans[0] = p.x; ans[1] = p.y; ans[2] = p.z;
-    ans[3] = normal.x; ans[4] = normal.y; ans[5] = normal.z;
+    Info ans;
+    ans.Point = p;
+    ans.Normal = normal;
 
 
 
@@ -169,45 +174,34 @@ void main() {
 				vec3(0., 0., 1.));
 
   // We get the outline of the shell centered at (0,0,0)
-  float[6] data1 = C_info(t1, theta1, R);
-  float[6] data2 = C_info(t1, theta2, R);
-  float[6] data3 = C_info(t2, theta1, R);
-  float[6] data4 = C_info(t2, theta2, R);
+  Info data1 = C_info(t1, theta1, R);
+  Info data2 = C_info(t1, theta2, R);
+  Info data3 = C_info(t2, theta1, R);
+  Info data4 = C_info(t2, theta2, R);
 
-  vec3 p1 = vec3(data1[0], data1[1], data1[2]);
-  vec3 n1 = vec3(data1[3], data1[4], data1[5]);
-
-  vec3 p2 = vec3(data2[0], data2[1], data2[2]);
-  vec3 n2 = vec3(data2[3], data2[4], data2[5]);
-
-  vec3 p3 = vec3(data3[0], data3[1], data3[2]);
-  vec3 n3 = vec3(data3[3], data3[4], data3[5]);
-
-  vec3 p4 = vec3(data4[0], data4[1], data4[2]);
-  vec3 n4 = vec3(data4[3], data4[4], data4[5]);
 
 	// By translating the outlines, we obtain their real position in the mesh
   vec3 pos;
 
 	switch(gl_VertexID){
 		case 0:
-			pos = p1;
-      vNormal = normalize(normalMatrix * n1);
+			pos = data1.Point;
+      vNormal = normalize(normalMatrix * data1.Normal);
       UV = vec2((segment_id) / (total_segments), (group_id) / (quads_per_segment));
 			break;
 		case 1:
-			pos = p2;
-      vNormal = normalize(normalMatrix * n2);
+			pos = data2.Point;
+      vNormal = normalize(normalMatrix * data2.Normal);
       UV = vec2((segment_id) / (total_segments), (group_id+1.) / (quads_per_segment));
 			break;
 		case 2:
-			pos = p3;
-      vNormal = normalize(normalMatrix * n3);
+			pos = data3.Point;
+      vNormal = normalize(normalMatrix * data3.Normal);
       UV = vec2((segment_id+1.) / (total_segments), (group_id) / (quads_per_segment));
 			break;
 		case 3:
-			pos = p4;
-      vNormal = normalize(normalMatrix * n4);
+			pos = data4.Point;
+      vNormal = normalize(normalMatrix * data4.Normal);
       UV = vec2((segment_id+1.) / (total_segments), (group_id+1.) / (quads_per_segment));
 			break;
 		default:
