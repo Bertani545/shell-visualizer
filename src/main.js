@@ -41,11 +41,14 @@ document.addEventListener('keydown', (e) => {
 
 const textureLoader = new THREE.TextureLoader();
 const geometry = new THREE.PlaneGeometry(1, 1);
-const count = 10000;
+
+const totalSegments = 500;
+const quadsPerSegment = 100;
+const count = totalSegments * quadsPerSegment;
 
 const my_uniforms = {
-  total_instances : {value : count},
-    total_segments : {value: 100},
+  quads_per_segment : {value : quadsPerSegment},
+    total_segments : {value: totalSegments},
     span_t : {value:15},
     b : {value: 0.215},
     d : {value : 0.88},
@@ -80,7 +83,7 @@ const material = new THREE.ShaderMaterial({
     varying vec3 vNormal;
     varying vec3 vViewPosition;
 
-    uniform float total_instances;
+uniform float quads_per_segment;
 uniform float total_segments;
 uniform float span_t;
 uniform float b;
@@ -119,7 +122,7 @@ vec3 C(float t, float theta, mat3 R)
   vec3 B = normalize(vec3(b*z*(b*sin(t)+cos(t)), b*z*(b*cos(t) - sin(t)), d*(b*b+1.)));
   vec3 p = (exp(b*t) - 1./(t+1.)) * R * (c1 * N + c2 * B);
 
-  return exp(b*t) * vec3(d * sin(t), d * cos(t), -z) + (exp(b*t) - 1./(t+1.)) * R * (c1 * N + c2 * B);
+  return exp(b*t) * vec3(d * sin(t), d * cos(t), -z) + p;
 
 }
 
@@ -154,7 +157,7 @@ void main() {
   float instance_id = float(int(gl_InstanceID));
 	
 	
-	float quads_per_segment = total_instances / total_segments; 
+	float  total_instances = quads_per_segment * total_segments; 
 	float segment_id = float(int(instance_id/quads_per_segment));
 	float group_id = mod(instance_id, quads_per_segment); // For creating the ring. This divides TAU
 	
